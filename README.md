@@ -1,7 +1,13 @@
 # AutoQNN
 QNN inference for autonomous driving applications using QCS6490, or similar.
 
-## Folder structure
+## Milestones
+- [x] Basic QNN inference
+- [ ] GStreamer integration
+- [ ] Multi-camera support
+- [ ] Output features passing
+
+## Project structure
 ```
 docs/ <-- Documentation
 external/ <-- external libraries
@@ -38,3 +44,8 @@ cmake --build build/
 ```bash
 cmake --build build/ --target target_run
 ```
+
+## Inference results
+| Model | Inference speed (ms) |
+| ----- | -------------------- |
+| EfficientNet-Lite4 |   4.2   |
