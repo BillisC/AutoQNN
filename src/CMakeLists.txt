@@ -14,13 +14,17 @@ endif()
 # Source files
 target_sources(${APP}
   PRIVATE
-  # Application files
+  # Application
   ${CMAKE_CURRENT_SOURCE_DIR}/main.cpp
+  # Core
   ${CMAKE_CURRENT_SOURCE_DIR}/core/backend.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/core/model.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/core/camera.cpp
+  # Utilities
   ${CMAKE_CURRENT_SOURCE_DIR}/utils/dynload.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/utils/tensor.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/utils/buffer.cpp
+  # Logging
   ${CMAKE_CURRENT_SOURCE_DIR}/log/logger.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/log/log_utils.cpp
 )
@@ -34,12 +38,13 @@ target_include_directories(${APP}
   ${CMAKE_CURRENT_SOURCE_DIR}/utils
   ${CMAKE_CURRENT_SOURCE_DIR}/log
   ${QNN_SDK_ROOT}/include/QNN
+  ${GST_INCLUDE_DIRS}
 )
 
 # Platform-specific libraries
 find_package(Threads REQUIRED)
-target_link_libraries(${APP} PRIVATE dl ${CMAKE_THREAD_LIBS_INIT})
-target_link_directories(${APP} PRIVATE ${QNN_SDK_ROOT}/lib/aarch64-oe-linux-gcc11.2)
+target_link_libraries(${APP} PRIVATE dl ${CMAKE_THREAD_LIBS_INIT} ${GST_LIBRARIES})
+target_link_directories(${APP} PRIVATE ${QNN_SDK_ROOT}/lib/aarch64-oe-linux-gcc11.2 ${GST_LIBRARY_DIRS})
 #target_link_directories(${APP} PRIVATE ${QNN_SDK_ROOT}/lib/aarch64-ubuntu-gcc9.4)
 
 # Target Execute (w/ssh)

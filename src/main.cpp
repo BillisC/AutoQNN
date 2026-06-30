@@ -5,18 +5,36 @@
  * @author  BillisC (Vasileios Ch.)
  */
 
+#include <gst/gst.h>
+#include <gst/app/gstappsink.h>
+#include <thread>
+
 // QNN Logging
 #include "logger.hpp"
 
 #include "backend.h"
 #include "model.h"
+#include "camera.h"
 
-int main() {
+int main(int argc, char *argv[]) {
   /* Initialize logging */
   qnn::log::initializeLogging();
   qnn::log::setLogLevel(QNN_LOG_LEVEL_DEBUG);
 
   QNN_INFO("hello qualcomm\n");
+
+  /* Initialize GStreamer */
+  gst_init(&argc, &argv);
+
+  const char *pipelineDesc =
+      "qtiqmmfsrc ! "
+      "video/x-raw,format=NV12,width=1280,height=720,framerate=30/1 ! "
+      "videoconvert ! "
+      "appsink name=mysink emit-signals=true sync=false drop=true "
+      "max-buffers=2 caps=video/x-raw,format=BGR";
+
+  camera::Camera cam1(640, 480, pipelineDesc, "mysink");
+  cam1.start();
 
   /* Initialize backend */
   backend::DeviceBackend back(backend::DeviceBackend::DeviceType::HTP, true);

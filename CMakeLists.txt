@@ -8,6 +8,8 @@ endif()
 # Define project
 project(autoqnn)
 
+find_package(PkgConfig REQUIRED)
+
 # Compiler flags
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_BUILD_TYPE Debug)
@@ -27,6 +29,12 @@ if(DEFINED ENV{QNN_SDK_ROOT})
 else()
     message(FATAL_ERROR "${PROJECT_NAME}: QNN_SDK_ROOT not set (QAIRT), run envsetup.sh first")
 endif()
+
+# GStreamer check
+pkg_check_modules(GST REQUIRED gstreamer-1.0 gstreamer-audio-1.0 gstreamer-video-1.0 gstreamer-app-1.0)
+message("GST_INCLUDE_DIRS = ${GST_INCLUDE_DIRS}")
+message("GST_LIBRARY_DIRS = ${GST_LIBRARY_DIRS}")
+message("GST_LIBRARIES = ${GST_LIBRARIES}")
 
 # Compile app
 add_subdirectory(src)
