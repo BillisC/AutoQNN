@@ -28,13 +28,16 @@ int main(int argc, char *argv[]) {
 
   const char *pipelineDesc =
       "qtiqmmfsrc ! "
-      "video/x-raw,format=NV12,width=1280,height=720,framerate=30/1 ! "
+      "video/x-raw,format=NV12,width=224,height=224,framerate=30/1 ! "
       "videoconvert ! "
       "appsink name=mysink emit-signals=true sync=false drop=true "
       "max-buffers=2 caps=video/x-raw,format=BGR";
 
-  camera::Camera cam1(640, 480, pipelineDesc, "mysink");
-  cam1.start();
+  camera::Camera cam1(224, 224, pipelineDesc, "mysink");
+  if (camera::Camera::Result::OK != cam1.start()) {
+    QNN_ERROR("Camera 1 initialization failed");
+    return -1;
+  }
 
   /* Initialize backend */
   backend::DeviceBackend back(backend::DeviceBackend::DeviceType::HTP, true);

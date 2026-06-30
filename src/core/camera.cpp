@@ -33,6 +33,10 @@ Camera::Result Camera::start() {
 
   /* Start video sink */
   m_sink = gst_bin_get_by_name(GST_BIN(m_pipeline), m_sink_name);
+  if (!m_sink) {
+    return Result::SINK_ERROR;
+  }
+
   gst_element_set_state(m_pipeline, GST_STATE_PLAYING);
 
   /* Start threads */
