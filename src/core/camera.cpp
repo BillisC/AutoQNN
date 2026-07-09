@@ -42,24 +42,33 @@ Camera::Result Camera::start() {
   /* Start threads */
   m_bus_thread = std::thread(&Camera::watch_bus, this);
 
+  /* Clear error flags */
+  m_msg_fail = false;
+
   return Result::OK;
 }
 
 Camera::Result Camera::stop() {
+  /* Stop pipeline */
+  gst_element_set_state(m_pipeline, GST_STATE_NULL);
+
   /* Join threads */
-  m_bus_thread.join();
+  if (m_bus_thread.joinable()) {
+    m_bus_thread.join();
+  }
 
   /* Free pipeline */
-  gst_element_set_state(m_pipeline, GST_STATE_NULL);
   gst_object_unref(m_pipeline);
 
   return Result::OK;
 }
 
-Camera::Result Camera::frame(std::vector<uint8_t> v_buffer) {
+Camera::Result Camera::frame(std::vector<uint8_t> &v_buffer) {
   /* Check if the stream is alive  */
-  if (!m_sink || !gst_app_sink_is_eos(GST_APP_SINK(m_sink))) {
+  if (!m_sink || gst_app_sink_is_eos(GST_APP_SINK(m_sink))) {
     return Result::SINK_EOS; // EOS or sink uninitialized
+  } else if (m_msg_fail) {
+    return Result::MESSAGE_ERROR;
   }
 
   /* Pull latest frame from stream  */
@@ -84,7 +93,7 @@ Camera::Result Camera::frame(std::vector<uint8_t> v_buffer) {
 void Camera::watch_bus() {
   GstBus *bus = gst_element_get_bus(m_pipeline);
   GstMessage *msg = gst_bus_timed_pop_filtered(
-      bus, GST_CLOCK_TIME_NONE,
+      bus, 100 * GST_MSECOND,
       static_cast<GstMessageType>(GST_MESSAGE_ERROR | GST_MESSAGE_EOS));
 
   if (msg) {
@@ -95,6 +104,7 @@ void Camera::watch_bus() {
         gchar *dbg = nullptr;
         gst_message_parse_error(msg, &err, &dbg);
         QNN_ERROR("GStreamer error: %s\n", err ? err->message : "unknown");
+        m_msg_fail = true;
         g_clear_error(&err);
         g_free(dbg);
         break;

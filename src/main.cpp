@@ -27,8 +27,10 @@ int main(int argc, char *argv[]) {
   gst_init(&argc, &argv);
 
   const char *pipelineDesc =
-      "qtiqmmfsrc ! "
-      "video/x-raw,format=NV12,width=224,height=224,framerate=30/1 ! "
+      //"qtiqmmfsrc ! "
+      //"video/x-raw,format=NV12,width=224,height=224,framerate=30/1 ! "
+      "v4l2src device=/dev/video2 ! "
+      "video/x-raw,width=320,height=240,framerate=30/1 ! "
       "videoconvert ! "
       "appsink name=mysink emit-signals=true sync=false drop=true "
       "max-buffers=2 caps=video/x-raw,format=BGR";
@@ -40,21 +42,21 @@ int main(int argc, char *argv[]) {
   }
 
   /* Initialize backend */
-  backend::DeviceBackend back(backend::DeviceBackend::DeviceType::HTP, true);
-  if (backend::DeviceBackend::Result::OK != back.init()) {
-    QNN_ERROR("Backend initialization failed");
-    return -1;
-  }
+  // backend::DeviceBackend back(backend::DeviceBackend::DeviceType::HTP, true);
+  // if (backend::DeviceBackend::Result::OK != back.init()) {
+  //   QNN_ERROR("Backend initialization failed");
+  //   return -1;
+  // }
 
-  /* Load model graph from shared lib */
-  model::Model mod(back.backend(), back.device(), back.profile(),
-                   back.interface());
-  if (model::Model::Result::OK !=
-      mod.load_model_lib("/tmp/libefficientnet-lite4_quant.so")) {
-    QNN_ERROR("Model load failed");
-    return -1;
-  }
-  mod.execute();
+  // /* Load model graph from shared lib */
+  // model::Model mod(back.backend(), back.device(), back.profile(),
+  //                  back.interface());
+  // if (model::Model::Result::OK !=
+  //     mod.load_model_lib("/tmp/libefficientnet-lite4_quant.so")) {
+  //   QNN_ERROR("Model load failed");
+  //   return -1;
+  // }
+  // mod.execute();
   QNN_INFO("Finished");
 
   return 0;

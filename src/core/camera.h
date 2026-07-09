@@ -39,6 +39,9 @@ private:
   const int m_cam_width;
   const int m_cam_height;
 
+  /* Flags */
+  uint8_t m_msg_fail{0U}; /**< Sink message fail state */
+
   /* Pipeline control */
   GstElement *m_pipeline{nullptr}; /**< Pipeline handle */
   GstElement *m_sink{nullptr};     /**< Sink handle */
@@ -93,7 +96,7 @@ public:
    * @param[out] v_buffer Vector buffer to store the frame
    * @return result enum value
    */
-  Result frame(std::vector<uint8_t> v_buffer);
+  Result frame(std::vector<uint8_t> &v_buffer);
 
 private:
   /* Threaded functions */
