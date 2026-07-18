@@ -64,20 +64,30 @@ int main(int argc, char *argv[]) {
   std::vector<uint8_t> i_buffer;
   i_buffer.reserve(224 * 224 * 3);
 
-  if (camera::Camera::Result::OK != cam1.frame(i_buffer)) {
-    QNN_ERROR("Camera 1 frame parsing failed");
-    return -1;
+  auto start = std::chrono::steady_clock::now();
+  uint32_t frame_cnt = 0;
+
+  /* Blocking parse frame */
+  while (camera::Camera::Result::OK == cam1.frame(i_buffer)) {
+    mod.fill_input(i_buffer);
+    mod.execute();
+
+    frame_cnt++;
+
+    if (frame_cnt % 60 == 0) {
+      auto end = std::chrono::steady_clock::now();
+      std::chrono::duration<double> elapsed = end - start;
+
+      double fps = static_cast<double>(frame_cnt) / elapsed.count();
+      QNN_INFO("Pipeline speed: %.2f FPS", fps);
+
+      frame_cnt = 0;
+      start = std::chrono::steady_clock::now();
+    }
   }
 
-  auto start = std::chrono::high_resolution_clock::now();
-  mod.fill_input(i_buffer);
-  auto end = std::chrono::high_resolution_clock::now();
-  auto duration =
-      std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+  QNN_ERROR("Camera frame parsing stopped");
 
-  QNN_INFO("Fill: %dum", int(duration.count()));
-
-  mod.execute();
   QNN_INFO("Finished");
 
   return 0;
