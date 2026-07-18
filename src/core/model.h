@@ -10,6 +10,8 @@
 #ifndef GRAPHS_H
 #define GRAPHS_H
 
+#include <vector>
+
 #include "QnnCommon.h"
 #include "QnnGraph.h"
 #include "QnnInterface.h"
@@ -111,6 +113,30 @@ public:
    * @return Model action result
    */
   Result execute();
+
+  /**
+   * @brief Fill a single input tensor from vector buffer.
+   *
+   * Use when the model consists of a single graph / entry point and batch
+   * size 1 (most common).
+   *
+   * @param i_buffer Input buffer
+   * @return Model action result
+   */
+  Result fill_input(std::vector<uint8_t> &i_buffer);
+
+  /**
+   * @brief Fill multiple input tensors from 3D vector buffer.
+   *
+   * This function copies the passed 3D buffer to multiple graph input
+   * tensors. Make sure the element count of the top-level vector equals the
+   * number of model graphs, and the second level matches the input tensor count
+   * of the graph. Use when the model consists of multiple graphs or batches.
+   *
+   * @param i_buffer 3D Input buffer
+   * @return Model action result
+   */
+  Result fill_inputs(std::vector<std::vector<std::vector<uint8_t>>> &i_buffer);
 
 private:
   /**

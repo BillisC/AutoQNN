@@ -146,8 +146,48 @@ bool tensor::setup_tensors(Qnn_Tensor_t **tensors, uint32_t tensor_count,
   return true;
 }
 
+bool tensor::fill_tensor(Qnn_Tensor_t *tensor,
+                         const std::vector<uint8_t> &input_data) {
+  if (tensor == nullptr) {
+    QNN_ERROR("fill_tensor: tensor is nullptr");
+    return false;
+  }
+
+  /* Get allocated client buffer */
+  Qnn_ClientBuffer_t clientBuf = QNN_TENSOR_GET_CLIENT_BUF(*tensor);
+  if (clientBuf.data == nullptr) {
+    QNN_ERROR("fill_tensor: tensor has null client buffer");
+    return false;
+  }
+
+  /* Get tensor data type */
+  Qnn_DataType_t dataType = QNN_TENSOR_GET_DATA_TYPE(tensor);
+
+  /* Perform copy operation */
+  if (dataType == QNN_DATATYPE_UFIXED_POINT_8 ||
+      dataType == QNN_DATATYPE_UINT_8) {
+
+    /* Verify size */
+    size_t dstSize = clientBuf.dataSize;
+    if (input_data.size() != dstSize) {
+      QNN_ERROR("fill_tensor: expects %zu bytes but input has %zu", dstSize,
+                input_data.size());
+      return false;
+    }
+
+    /* Direct input mapping */
+    memcpy(reinterpret_cast<uint8_t *>(clientBuf.data), input_data.data(),
+           dstSize);
+    return true;
+
+  } else {
+    QNN_ERROR("fill_tensor: unsupported tensor input type!");
+    return false;
+  }
+}
+
 bool tensor::fill_tensors(Qnn_Tensor_t *tensors, uint32_t tensor_count,
-                          const std::vector<std::vector<float>> &input_data) {
+                          std::vector<std::vector<uint8_t>> &input_data) {
   /* Check parameter inputs */
   if (tensors == nullptr) {
     QNN_ERROR("fill tensors are nullptr");
@@ -160,69 +200,11 @@ bool tensor::fill_tensors(Qnn_Tensor_t *tensors, uint32_t tensor_count,
     return false;
   }
 
-  /* Fill each tensor input  */
+  /* Fill each tensor input */
   for (uint32_t t = 0; t < tensor_count; ++t) {
-    /* Get allocated client buffer */
-    Qnn_ClientBuffer_t clientBuf = QNN_TENSOR_GET_CLIENT_BUF(tensors[t]);
-    if (clientBuf.data == nullptr) {
-      QNN_ERROR("tensor %u has null client buffer", t);
+    if (!fill_tensor(tensors + t, input_data[t])) {
+      QNN_ERROR("fill_tensors: failed on tensor %u", t);
       return false;
-    }
-
-    /* Verify size */
-    size_t dstSize = clientBuf.dataSize;
-    const std::vector<float> &src = input_data[t];
-    if ((src.size() * sizeof(float)) < dstSize) {
-      QNN_ERROR("tensor %u expects %zu bytes but input has %zu", t, dstSize,
-                (src.size() * sizeof(float)));
-      return false;
-    }
-
-    /* Get tensor data type */
-    Qnn_DataType_t dataType = QNN_TENSOR_GET_DATA_TYPE(tensors + t);
-
-    /* Get dims */
-    std::vector<size_t> dims;
-    uint32_t *tDims = QNN_TENSOR_GET_DIMENSIONS(tensors + t);
-    uint32_t tRank = QNN_TENSOR_GET_RANK(tensors + t);
-    for (size_t r = 0; r < tRank; r++) dims.push_back(tDims[r]);
-
-    if (dataType != QNN_DATATYPE_FLOAT_32) {
-      /* Quantize float input to uint8 */
-      switch (dataType) {
-        case QNN_DATATYPE_UFIXED_POINT_8:
-          casts::floatToTfN<uint8_t>(
-              static_cast<uint8_t *>(
-                  QNN_TENSOR_GET_CLIENT_BUF(tensors + t).data),
-              src,
-              QNN_TENSOR_GET_QUANT_PARAMS(tensors + t)
-                  .scaleOffsetEncoding.offset,
-              QNN_TENSOR_GET_QUANT_PARAMS(tensors + t)
-                  .scaleOffsetEncoding.scale,
-              buffer::count_elements(dims));
-          break;
-
-        case QNN_DATATYPE_UFIXED_POINT_16:
-          casts::floatToTfN<uint16_t>(
-              static_cast<uint16_t *>(
-                  QNN_TENSOR_GET_CLIENT_BUF(tensors + t).data),
-              src,
-              QNN_TENSOR_GET_QUANT_PARAMS(tensors + t)
-                  .scaleOffsetEncoding.offset,
-              QNN_TENSOR_GET_QUANT_PARAMS(tensors + t)
-                  .scaleOffsetEncoding.scale,
-              buffer::count_elements(dims));
-          break;
-
-        case QNN_DATATYPE_INT_8:
-        case QNN_DATATYPE_INT_16:
-        default: QNN_ERROR("cannot quantize float to signed int"); return false;
-      }
-
-    } else {
-      /* Direct input mapping */
-      memcpy(reinterpret_cast<float *>(clientBuf.data), src.data(), dstSize);
-      QNN_DEBUG("filled tensor %u as float32 with %zu bytes", t, dstSize);
     }
   }
 

@@ -29,7 +29,16 @@ bool setup_tensors(Qnn_Tensor_t **tensors, uint32_t tensor_count,
                    Qnn_Tensor_t *tensor_wrappers);
 
 /**
- * @brief Fill tensors with input data.
+ * @brief Fill a single tensor with input data.
+ *
+ * @param[in] tensor Pointer to tensor
+ * @param[in] input_data Pointer to the input's data
+ * @return true on success
+ */
+bool fill_tensor(Qnn_Tensor_t *tensor, const std::vector<uint8_t> &input_data);
+
+/**
+ * @brief Fill multiple tensors with input data.
  *
  * @param[in] tensors Pointer to array of tensors
  * @param[in] tensor_count Number of tensors
@@ -37,7 +46,7 @@ bool setup_tensors(Qnn_Tensor_t **tensors, uint32_t tensor_count,
  * @return true on success
  */
 bool fill_tensors(Qnn_Tensor_t *tensors, uint32_t tensor_count,
-                  const std::vector<std::vector<float>> &input_data);
+                  std::vector<std::vector<uint8_t>> &input_data);
 
 /**
  * @brief Fully deallocate tensor array.

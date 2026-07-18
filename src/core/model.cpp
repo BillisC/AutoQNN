@@ -11,7 +11,6 @@
 #include "model.h"
 
 #include <fstream>
-#include <vector>
 
 #include "logger.hpp"
 #include "dynload.h"
@@ -120,6 +119,29 @@ Model::Result Model::execute() {
   m_qnn_interface->graphExecute(g.graph, m_tensor_inputs[0], g.numInputTensors,
                                 m_tensor_outputs[0], g.numOutputTensors,
                                 *m_profile_handle, nullptr);
+  return Model::Result::OK;
+}
+
+Model::Result Model::fill_input(std::vector<uint8_t> &i_buffer) {
+  /* Fill single model input */
+  if (!tensor::fill_tensor(m_tensor_inputs[0], i_buffer)) {
+    return Model::Result::TENSOR_ERROR;
+  }
+
+  return Model::Result::OK;
+}
+
+Model::Result
+Model::fill_inputs(std::vector<std::vector<std::vector<uint8_t>>> &i_buffer) {
+  /* Fill tensors for each graph */
+  for (size_t i = 0; i < m_graphs_count; i++) {
+    GraphInfo &g = *m_graphs_info[i];
+    if (!tensor::fill_tensors(m_tensor_inputs[i], g.numInputTensors,
+                              i_buffer[i])) {
+      return Model::Result::TENSOR_ERROR;
+    }
+  }
+
   return Model::Result::OK;
 }
 
