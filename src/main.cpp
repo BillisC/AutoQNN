@@ -17,6 +17,38 @@
 #include "backend.h"
 #include "model.h"
 #include "camera.h"
+#include "buffer.h"
+
+#include <string>
+#include <fstream>
+#include <algorithm>
+#include <cmath>
+
+bool load_labels(const std::string &path,
+                 std::vector<std::string> &out_labels) {
+  std::ifstream file(path);
+  if (!file.is_open()) {
+    QNN_ERROR("load_labels: failed to open %s", path.c_str());
+    return false;
+  }
+
+  out_labels.clear();
+  std::string line;
+  while (std::getline(file, line)) {
+    /* Strip trailing carriage return, in case the file has CRLF endings */
+    if (!line.empty() && line.back() == '\r') {
+      line.pop_back();
+    }
+    out_labels.push_back(line);
+  }
+
+  if (out_labels.empty()) {
+    QNN_ERROR("load_labels: %s contained no labels", path.c_str());
+    return false;
+  }
+
+  return true;
+}
 
 int main(int argc, char *argv[]) {
   /* Initialize logging */
@@ -37,7 +69,7 @@ int main(int argc, char *argv[]) {
       "videocrop left=40 right=40 top=0 bottom=0 ! "
       "videoscale ! "
       "appsink name=mysink emit-signals=true sync=false drop=true "
-      "max-buffers=1 caps=video/x-raw,format=BGR,width=224,height=224";
+      "max-buffers=1 caps=video/x-raw,format=RGB,width=224,height=224";
 
   camera::Camera cam1(224, 224, pipelineDesc, "mysink");
   if (camera::Camera::Result::OK != cam1.start()) {
@@ -61,17 +93,77 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
+  /* Contract of the bundled EfficientNet model, checked before inference */
+  const model::Model::TensorSpec inputSpec = {
+      {1, 224, 3, 224}, QNN_DATATYPE_UFIXED_POINT_8, 1.0f / 128.0f, -127};
+  const model::Model::TensorSpec outputSpec = {
+      {1, 1000}, QNN_DATATYPE_UFIXED_POINT_8, 1.0f / 256.0f, 0};
+  if (mod.validate_io(inputSpec, outputSpec) != model::Model::Result::OK) {
+    QNN_ERROR("Model is incompatible with the camera/classification pipeline");
+    return -1;
+  }
+
+  /* Load labels once at startup */
+  std::vector<std::string> class_labels;
+  if (!load_labels("/tmp/imagenet_classes.txt", class_labels)) {
+    QNN_ERROR("Could not load labels, aborting");
+    return -1;
+  }
+  if (class_labels.size() != outputSpec.dimensions[1]) {
+    QNN_ERROR("Label count does not match the model output");
+    return -1;
+  }
+
+  std::vector<uint8_t> frame_buffer;
+  frame_buffer.reserve(224 * 224 * 3);
   std::vector<uint8_t> i_buffer;
   i_buffer.reserve(224 * 224 * 3);
+
+  std::vector<float> o_buffer;
 
   auto start = std::chrono::steady_clock::now();
   uint32_t frame_cnt = 0;
 
   /* Blocking parse frame */
-  while (camera::Camera::Result::OK == cam1.frame(i_buffer)) {
-    mod.fill_input(i_buffer);
-    mod.execute();
+  while (camera::Camera::Result::OK == cam1.frame(frame_buffer)) {
+    /* Invert the model's [0,3,1,2] transpose for packed NHWC camera data.
+     * Pixels already encode the expected (pixel - 127) / 128 input range. */
+    if (!buffer::reorder_buffer(frame_buffer, {1, 224, 224, 3}, {0, 2, 3, 1},
+                                i_buffer)) {
+      QNN_ERROR("Failed to reorder camera input!");
+      continue;
+    }
+    if (mod.fill_input(i_buffer) != model::Model::Result::OK) {
+      QNN_ERROR("Failed to fill input!");
+      continue;
+    }
 
+    if (mod.execute() != model::Model::Result::OK) {
+      QNN_ERROR("Failed to execute!");
+      continue;
+    }
+
+    if (mod.output(o_buffer) != model::Model::Result::OK) {
+      QNN_ERROR("Failed to get output buffer!");
+      continue;
+    }
+
+    if (o_buffer.size() != class_labels.size() ||
+        !std::all_of(o_buffer.begin(), o_buffer.end(),
+                     [](float score) { return std::isfinite(score); })) {
+      QNN_ERROR("Invalid classification output!");
+      continue;
+    }
+
+    /* Print output */
+    auto best_it = std::max_element(o_buffer.begin(), o_buffer.end());
+    size_t best_idx = std::distance(o_buffer.begin(), best_it);
+    const std::string &label = class_labels[best_idx];
+
+    QNN_INFO("Predicted: %s (class=%zu, score=%.4f)", label.c_str(), best_idx,
+             *best_it);
+
+    /* FPS count */
     frame_cnt++;
 
     if (frame_cnt % 60 == 0) {
@@ -86,7 +178,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  QNN_ERROR("Camera frame parsing stopped");
+  QNN_INFO("Camera frame parsing stopped");
 
   QNN_INFO("Finished");
 

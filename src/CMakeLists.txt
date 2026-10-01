@@ -61,6 +61,7 @@ add_custom_target(target_run
   COMMAND printf '\\033[36m' # Change text color to cyan
   COMMAND scp -q -i ${TARGET_KEY} $<TARGET_FILE:${CMAKE_PROJECT_NAME}> ${TARGET_USER}@${TARGET_IP}:${TARGET_DIR}
   COMMAND scp -q -i ${TARGET_KEY} ${CMAKE_SOURCE_DIR}/libefficientnet-lite4_quant.so ${TARGET_USER}@${TARGET_IP}:${TARGET_DIR}
+  COMMAND scp -q -i ${TARGET_KEY} ${CMAKE_SOURCE_DIR}/imagenet_classes.txt ${TARGET_USER}@${TARGET_IP}:${TARGET_DIR}
   COMMAND ssh -tt -i ${TARGET_KEY} ${TARGET_USER}@${TARGET_IP} "${TARGET_DIR}/${CMAKE_PROJECT_NAME}"
   COMMAND printf '\\033[0m' # Revert text color
   DEPENDS ${PROJECT_NAME}

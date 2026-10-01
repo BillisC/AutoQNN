@@ -14,6 +14,7 @@
 #include <gst/gst.h>
 #include <gst/app/gstappsink.h>
 #include <thread>
+#include <atomic>
 #include <vector>
 
 namespace camera {
@@ -40,7 +41,8 @@ private:
   const int m_cam_height;
 
   /* Flags */
-  uint8_t m_msg_fail{0U}; /**< Sink message fail state */
+  std::atomic<bool> m_msg_fail{false}; /**< Sink message fail state */
+  std::atomic<bool> m_running{false};  /**< Bus watcher state */
 
   /* Pipeline control */
   GstElement *m_pipeline{nullptr}; /**< Pipeline handle */
@@ -90,8 +92,10 @@ public:
    * @brief Fetch latest frame from GStreamer pipeline sink.
    *
    * This function receives the latest sink frame from the GStreamer pipeline
-   * and copies it to the passed vector buffer. The vector buffer should have
-   * reserved width*height*channels bytes to avoid unwanted overheads.
+   * and copies packed RGB rows to the passed vector buffer. Caps must match
+   * the configured width and height. On failure the vector is cleared.
+   * The vector buffer should have reserved width*height*channels bytes to
+   * avoid unwanted overheads.
    *
    * @param[out] v_buffer Vector buffer to store the frame
    * @return result enum value

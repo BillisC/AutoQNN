@@ -38,3 +38,9 @@ message("GST_LIBRARIES = ${GST_LIBRARIES}")
 
 # Compile app
 add_subdirectory(src)
+
+# Regression tests use the same SDK, toolchain and GStreamer configuration
+include(CTest)
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
