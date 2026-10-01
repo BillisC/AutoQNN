@@ -10,6 +10,8 @@
 #ifndef GRAPHS_H
 #define GRAPHS_H
 
+#include <vector>
+
 #include "QnnCommon.h"
 #include "QnnGraph.h"
 #include "QnnInterface.h"
@@ -54,6 +56,17 @@ public:
   typedef GraphInfo_t *GraphInfoPtr_t;
 
   /**
+   * @brief Expected dense tensor shape, type and per-tensor quantization.
+   * @note Scale/offset are checked only for fixed-point tensors.
+   */
+  struct TensorSpec {
+    std::vector<uint32_t> dimensions;
+    Qnn_DataType_t data_type;
+    float scale;
+    int32_t offset;
+  };
+
+  /**
    * @brief Model graph config struct.
    */
   typedef struct GraphConfigInfo {
@@ -79,12 +92,15 @@ private:
   Qnn_ProfileHandle_t *m_profile_handle{nullptr};
 
   /* Function Pointers */
-  QNN_INTERFACE_VER_TYPE *m_qnn_interface;
+  QNN_INTERFACE_VER_TYPE *m_qnn_interface{nullptr};
   FreeGraphInfoFnHandleType_t m_freeGraphsInfoFn{nullptr};
 
   /* Graph data */
-  GraphInfo_t **m_graphs_info;
-  uint32_t m_graphs_count;
+  GraphInfo_t **m_graphs_info{nullptr};
+  uint32_t m_graphs_count{0};
+  bool m_initialized{false};
+  bool m_inputs_ready{false};
+  bool m_output_valid{false};
 
   Qnn_Tensor_t **m_tensor_inputs{nullptr}, **m_tensor_outputs{nullptr};
 
@@ -93,6 +109,8 @@ public:
         Qnn_ProfileHandle_t *profile_handle,
         QNN_INTERFACE_VER_TYPE *qnn_interface);
   ~Model() { close(); }
+  Model(const Model &) = delete;
+  Model &operator=(const Model &) = delete;
 
   /**
    * @brief Load static model library.
@@ -107,10 +125,104 @@ public:
   Result load_model_lib(const char *lib_path);
 
   /**
-   * @brief Execute model graph on device.
+   * @brief Validate the single-graph input/output contract at startup.
+   * @note Requires one static, dense input and output tensor.
+   * @return OK if shape, type and quantization match both specifications
+   */
+  Result validate_io(const TensorSpec &input, const TensorSpec &output) const;
+
+  /**
+   * @brief Execute all model graphs on device using the filled inputs.
    * @return Model action result
    */
   Result execute();
+
+  /**
+   * @brief Fill a single input tensor from buffer.
+   *
+   * Requires a single graph with one input tensor. Bytes must already match
+   * the model's layout and quantization; this function performs a raw copy.
+   *
+   * @param i_buffer Input vector buffer
+   * @return Model action result
+   */
+  Result fill_input(std::vector<uint8_t> &i_buffer);
+
+  /**
+   * @brief Fill multiple input tensors from 3D buffer.
+   *
+   * This function copies the passed 3D buffer to multiple graph input
+   * tensors. Make sure the element count of the top-level vector equals the
+   * number of model graphs, and the second level matches the input tensor count
+   * of the graph. Use when the model consists of multiple graphs or batches.
+   * Bytes must already match each tensor's layout and quantization.
+   *
+   * @param i_buffer 3D Input vector buffer
+   * @return Model action result
+   */
+  Result fill_inputs(std::vector<std::vector<std::vector<uint8_t>>> &i_buffer);
+
+  /**
+   * @brief Retrieve the single output tensor of the model.
+   *
+   * This function retrieves the output tensor of the model and copies it to the
+   * passed vector buffer.
+   *
+   * @note Requires successful execution since the last input fill.
+   * @param[out] o_buffer Vector to hold the output.
+   * @return Model action result
+   */
+  Result output(std::vector<uint8_t> &o_buffer);
+
+  /**
+   * @brief Retrieve the single output float tensor of the model.
+   *
+   * This function retrieves the output tensor of the model and copies it to the
+   * passed float vector buffer. If the output tensor type is quantized 8-bits,
+   * dequantization is automatically applied.
+   *
+   * @note Requires successful execution since the last input fill.
+   * @param[out] o_buffer Vector to hold the output.
+   * @return Model action result
+   */
+  Result output(std::vector<float> &o_buffer);
+
+  /**
+   * @brief Retrieve multi-graph output tensors of the model.
+   *
+   * This function retrieves all output tensors of the model and copies them to
+   * the passed 3D vector buffer. The top-level size of the output buffer will
+   * change according to the actual output size automatically.
+   *
+   * Top dim: graphs
+   * Second dim: output tensors per graph
+   * Third dim: output data
+   *
+   * @note Requires successful execution of all graphs since the last input
+   * fill.
+   * @param[out] o_buffer 3D vector to hold the output.
+   * @return Model action result
+   */
+  Result outputs(std::vector<std::vector<std::vector<uint8_t>>> &o_buffer);
+
+  /**
+   * @brief Retrieve multi-graph output float tensors of the model.
+   *
+   * This function retrieves all output tensors of the model and copies them to
+   * the passed 3D vector buffer. The top-level size of the output buffer will
+   * change according to the actual output size automatically. If the output
+   * tensor type is quantized 8-bits, dequantization is automatically applied.
+   *
+   * Top dim: graphs
+   * Second dim: output tensors per graph
+   * Third dim: output data
+   *
+   * @note Requires successful execution of all graphs since the last input
+   * fill.
+   * @param[out] o_buffer 3D vector to hold the output.
+   * @return Model action result
+   */
+  Result outputs(std::vector<std::vector<std::vector<float>>> &o_buffer);
 
 private:
   /**

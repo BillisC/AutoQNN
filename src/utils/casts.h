@@ -12,7 +12,10 @@
 #define CASTS_H
 
 #include <vector>
-#include <math.h>
+#include <cmath>
+#include <cstdint>
+#include <limits>
+#include <type_traits>
 
 namespace casts {
 
@@ -34,26 +37,28 @@ static bool floatToTfN(T *out, const std::vector<float> &in, int32_t offset,
   static_assert(std::is_unsigned<T>::value,
                 "floatToTfN supports unsigned only!");
 
-  if (nullptr == out || in.empty()) {
+  if (nullptr == out || in.empty() || n_elements > in.size() ||
+      !std::isfinite(scale) || scale <= 0.0f) {
     return false;
   }
 
-  /* Quantize all elements */
-  size_t dataTypeSizeInBytes = sizeof(T);
-  size_t bitWidth = dataTypeSizeInBytes * sizeof(uint8_t);
-  double trueBitWidthMax = pow(2, bitWidth) - 1;
-  double encodingMin = offset * scale;
-  double encodingMax = (trueBitWidthMax + offset) * scale;
-  double encodingRange = encodingMax - encodingMin;
-
   for (size_t i = 0; i < n_elements; ++i) {
-    int quantizedValue =
-        round(trueBitWidthMax * (in[i] - encodingMin) / encodingRange);
-    if (quantizedValue < 0)
-      quantizedValue = 0;
-    else if (quantizedValue > (int)trueBitWidthMax)
-      quantizedValue = (int)trueBitWidthMax;
-    out[i] = static_cast<T>(quantizedValue);
+    if (!std::isfinite(in[i])) {
+      return false;
+    }
+  }
+
+  /* Quantize all elements using QNN's scale * (q + offset) convention */
+  double max_value = static_cast<double>(std::numeric_limits<T>::max());
+  for (size_t i = 0; i < n_elements; ++i) {
+    double quantizedValue =
+        std::round(static_cast<double>(in[i]) / scale - offset);
+    if (quantizedValue <= 0.0)
+      out[i] = 0;
+    else if (quantizedValue >= max_value)
+      out[i] = std::numeric_limits<T>::max();
+    else
+      out[i] = static_cast<T>(quantizedValue);
   }
   return true;
 }
